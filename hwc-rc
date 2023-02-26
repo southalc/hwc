@@ -1,0 +1,159 @@
+# bash "hwc" (hardware control) function with command completion as a wrapper for common ipmitool commands
+
+# Do not continue unless the shell is interactive
+[[ $- == *i* ]] || exit 0
+echo "Sourcing .hwc-rc"
+
+# Optional - Set default values if you have a commonly used IPMI account/device
+# export IPMIUSER='admin'
+# export IPMIADDR='192.168.1.5'
+
+# Provide basic help
+read -r -d '' HELP_TEXT <<'EOF'
+Supported commands: env, on (power_on), off (power_off), status, mc_info, fru, chassis, sensor,
+                    session, sel, sel_elist (elist), sdr, sol (sol_start), sol_stop, pxe, shell
+EOF
+
+# Export the given environment variable from user input and optionally mask characters with "*" for passwords
+function get-input() {
+  [[ -z $2 ]] && echo "Usage: ${FUNCNAME} <variable_name> <prompt> [hidden]" && return 1
+  if [[ $3 = hidden ]]
+    then
+    INPUT_VALUE=
+    INPUT_PROMPT=
+    printf "${2} "
+    while IFS= read -p "${INPUT_PROMPT}" -r -s -n 1 CHAR
+      do
+      [[ $CHAR == $'\0' ]] && break
+      INPUT_PROMPT='*'
+      INPUT_VALUE+="${CHAR}"
+    done
+    printf "\n"
+  else
+    printf "${2} "
+    read -r INPUT_VALUE
+  fi
+  export ${1}="${INPUT_VALUE}"
+}
+
+function hwc-reset() {
+  echo "Clear IPMI variables from the shell"
+  unset IPMIADDR
+  unset IPMIUSER
+  unset IPMIPASS
+}
+
+function hwc() {
+  USAGE="Usage: ${FUNCNAME} <command> <target>"
+  [[ -z $1 ]] && echo "${USAGE}" && echo "${HELP_TEXT}" && return
+  # Allow override of $IPMIADDR with a second command argument
+  [[ -n $2 ]] && IPMIADDR="${2}"
+  [[ -z $IPMIADDR ]] && echo "${USAGE}" && echo "${HELP_TEXT}" && return
+  [[ -z $IPMIUSER ]] && get-input IPMIUSER "Enter the IPMI username:"
+  [[ -z $IPMIPASS ]] && get-input IPMIPASS "Enter the IPMI user password:" hidden
+
+  case ${1} in
+    env)
+      [[ -n $IPMIADDR ]] && echo "IPMIADDR=${IPMIADDR}" || echo "IPMIADDR is not set"
+      [[ -n $IPMIUSER ]] && echo "IPMIUSER=${IPMIUSER}" || echo "IPMIUSER is not set"
+      [[ -n $IPMIPASS ]] && echo "IPMIPASS is set in the shell" || echo "IPMIPASS is not set"
+      ;;
+    on)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" power on
+      ;;
+    power_on)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" power on
+      ;;
+    off)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" power off
+      ;;
+    power_off)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" power off
+      ;;
+    status)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" power status
+      ;;
+    mc_info)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" mc info
+      ;;
+    fru)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" fru
+      ;;
+    chassis)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" chassis status
+      ;;
+    sensor)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sensor
+      ;;
+    session)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" session info all
+      ;;
+    sel)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sel
+      ;;
+    sel_elist)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sel elist
+      ;;
+    elist)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sel elist
+      ;;
+    sdr)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sdr
+      ;;
+    sol)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sol activate
+      ;;
+    sol_start)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sol activate
+      ;;
+    sol_stop)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" sol deactivate
+      ;;
+    pxe)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" chassis bootdev pxe
+      ;;
+    shell)
+      ipmitool -I lanplus -H "${IPMIADDR}" -U "${IPMIUSER}" -P "${IPMIPASS}" shell
+      ;;
+    *)
+      echo "${USAGE}"
+      echo "${HELP_TEXT}"
+      ;;
+  esac
+}
+
+# bash completion for hwc
+_hwc() {
+  local cur=${COMP_WORDS[COMP_CWORD]}
+  local prev=${COMP_WORDS[COMP_CWORD-1]}
+  _init_completion || return
+  local KEYWORDS=()
+  KEYWORDS+=("on")
+  KEYWORDS+=("power_on")
+  KEYWORDS+=("off")
+  KEYWORDS+=("power_off")
+  KEYWORDS+=("status")
+  KEYWORDS+=("mc_info")
+  KEYWORDS+=("fru")
+  KEYWORDS+=("chasis")
+  KEYWORDS+=("sensor")
+  KEYWORDS+=("session")
+  KEYWORDS+=("sel")
+  KEYWORDS+=("sel_elist")
+  KEYWORDS+=("elist")
+  KEYWORDS+=("sdr")
+  KEYWORDS+=("sol")
+  KEYWORDS+=("sol_start")
+  KEYWORDS+=("sol_stop")
+  KEYWORDS+=("pxe")
+  KEYWORDS+=("shell")
+
+  # Generate completions from the KEYWORDS array
+  if [[ ! " ${KEYWORDS[*]} " =~ " ${prev} " ]]; then
+    COMPREPLY=($(compgen -W "${KEYWORDS[*]}" -- $cur))
+  fi
+}
+complete -F _hwc hwc
+
+alias cons='hwc sol'
+
